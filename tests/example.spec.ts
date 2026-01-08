@@ -1,25 +1,4 @@
-import { test as baseTest, expect as baseExpect } from '@playwright/test';
 import { test, expect } from './fixtures';
-
-baseTest('Asana login automation', async ({ page }) => {
-  // Navigate to the Asana demo app
-  await page.goto('https://animated-gingersnap-8cf7f2.netlify.app/');
-
-  // Fill in the username field
-  await page.getByLabel('Username').fill('admin');
-
-  // Fill in the password field
-  await page.getByLabel('Password').fill('password123');
-
-  // Submit the form
-  await page.getByRole('button', { name: 'Sign in' }).click();
-
-  // Wait for successful login - verify we're on the projects page
-  await baseExpect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
-  
-  // Additional verification: check for logout button which indicates successful login
-  await baseExpect(page.getByRole('button', { name: 'Logout' })).toBeVisible();
-});
 
 test('Test Case 1: Verify task in Web Application project', async ({ page }) => {
   // Navigate to "Web Application"
