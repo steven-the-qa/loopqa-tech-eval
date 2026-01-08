@@ -1,93 +1,85 @@
 import { test, expect } from './fixtures';
+import type { Page, Locator } from '@playwright/test';
 
-test('Test Case 1: Verify task in Web Application project', async ({ page }) => {
-  // Navigate to "Web Application"
-  await page.getByRole('button', { name: /^Web Application/ }).click();
-  await expect(page.getByRole('banner').getByRole('heading', { name: 'Web Application' })).toBeVisible();
+// Helper function to navigate to a project
+async function navigateToProject(page: Page, projectName: string) {
+  await page.getByRole('button', { name: new RegExp(`^${projectName}`) }).click();
+  await expect(page.getByRole('banner').getByRole('heading', { name: projectName })).toBeVisible();
+}
 
-  // Verify "Implement user authentication" is in the "To Do" column
-  const toDoSection = page.getByRole('heading', { name: /^To Do/ }).locator('..');
-  await expect(toDoSection.getByRole('heading', { name: 'Implement user authentication' })).toBeVisible();
+// Helper function to get a column section
+function getColumnSection(page: Page, columnName: string): Locator {
+  return page.getByRole('heading', { name: new RegExp(`^${columnName}`) }).locator('..');
+}
 
-  // Confirm tags: "Feature" "High Priority"
-  // Find the task card containing the heading, then verify tags within it
-  const taskCard = toDoSection.getByRole('heading', { name: 'Implement user authentication' }).locator('..');
-  await expect(taskCard.getByText('Feature', { exact: true })).toBeVisible();
-  await expect(taskCard.getByText('High Priority', { exact: true })).toBeVisible();
-});
+// Helper function to verify task exists in column and get its card
+function getTaskCard(section: Locator, taskName: string): Locator {
+  return section.getByRole('heading', { name: taskName }).locator('..');
+}
 
-test('Test Case 2: Verify task in Web Application project', async ({ page }) => {
-  // Navigate to "Web Application"
-  await page.getByRole('button', { name: /^Web Application/ }).click();
-  await expect(page.getByRole('banner').getByRole('heading', { name: 'Web Application' })).toBeVisible();
+// Helper function to verify task tags
+async function verifyTaskTags(taskCard: Locator, tags: readonly string[]) {
+  for (const tag of tags) {
+    await expect(taskCard.getByText(tag, { exact: true })).toBeVisible();
+  }
+}
 
-  // Verify "Fix navigation bug" is in the "To Do" column
-  const toDoSection = page.getByRole('heading', { name: /^To Do/ }).locator('..');
-  await expect(toDoSection.getByRole('heading', { name: 'Fix navigation bug' })).toBeVisible();
+// Test data: all test cases
+const testCases = [
+  {
+    project: 'Web Application',
+    taskName: 'Implement user authentication',
+    column: 'To Do',
+    tags: ['Feature', 'High Priority'],
+  },
+  {
+    project: 'Web Application',
+    taskName: 'Fix navigation bug',
+    column: 'To Do',
+    tags: ['Bug'],
+  },
+  {
+    project: 'Web Application',
+    taskName: 'Design system updates',
+    column: 'In Progress',
+    tags: ['Design'],
+  },
+  {
+    project: 'Mobile Application',
+    taskName: 'Push notification system',
+    column: 'To Do',
+    tags: ['Feature'],
+  },
+  {
+    project: 'Mobile Application',
+    taskName: 'Offline mode',
+    column: 'In Progress',
+    tags: ['Feature', 'High Priority'],
+  },
+  {
+    project: 'Mobile Application',
+    taskName: 'App icon design',
+    column: 'Done',
+    tags: ['Design'],
+  },
+] as const;
 
-  // Confirm tag: "Bug"
-  // Find the task card containing the heading, then verify tag within it
-  const taskCard = toDoSection.getByRole('heading', { name: 'Fix navigation bug' }).locator('..');
-  await expect(taskCard.getByText('Bug', { exact: true })).toBeVisible();
-});
+// Data-driven test using test.each
+for (const testCase of testCases) {
+  test(`Test Case: Verify ${testCase.taskName} in ${testCase.project} project`, async ({ page }) => {
+    // Navigate to project
+    await navigateToProject(page, testCase.project);
 
-test('Test Case 3: Verify task in Web Application project', async ({ page }) => {
-  // Navigate to "Web Application"
-  await page.getByRole('button', { name: /^Web Application/ }).click();
-  await expect(page.getByRole('banner').getByRole('heading', { name: 'Web Application' })).toBeVisible();
+    // Get column section
+    const columnSection = getColumnSection(page, testCase.column);
 
-  // Verify "Design system updates" is in the "In Progress" column
-  const inProgressSection = page.getByRole('heading', { name: /^In Progress/ }).locator('..');
-  await expect(inProgressSection.getByRole('heading', { name: 'Design system updates' })).toBeVisible();
+    // Verify task exists
+    await expect(columnSection.getByRole('heading', { name: testCase.taskName })).toBeVisible();
 
-  // Confirm tag: "Design"
-  // Find the task card containing the heading, then verify tag within it
-  const taskCard = inProgressSection.getByRole('heading', { name: 'Design system updates' }).locator('..');
-  await expect(taskCard.getByText('Design', { exact: true })).toBeVisible();
-});
+    // Get task card
+    const taskCard = getTaskCard(columnSection, testCase.taskName);
 
-test('Test Case 4: Verify task in Mobile Application project', async ({ page }) => {
-  // Navigate to "Mobile Application"
-  await page.getByRole('button', { name: /^Mobile Application/ }).click();
-  await expect(page.getByRole('banner').getByRole('heading', { name: 'Mobile Application' })).toBeVisible();
-
-  // Verify "Push notification system" is in the "To Do" column
-  const toDoSection = page.getByRole('heading', { name: /^To Do/ }).locator('..');
-  await expect(toDoSection.getByRole('heading', { name: 'Push notification system' })).toBeVisible();
-
-  // Confirm tag: "Feature"
-  // Find the task card containing the heading, then verify tag within it
-  const taskCard = toDoSection.getByRole('heading', { name: 'Push notification system' }).locator('..');
-  await expect(taskCard.getByText('Feature', { exact: true })).toBeVisible();
-});
-
-test('Test Case 5: Verify task in Mobile Application project', async ({ page }) => {
-  // Navigate to "Mobile Application"
-  await page.getByRole('button', { name: /^Mobile Application/ }).click();
-  await expect(page.getByRole('banner').getByRole('heading', { name: 'Mobile Application' })).toBeVisible();
-
-  // Verify "Offline mode" is in the "In Progress" column
-  const inProgressSection = page.getByRole('heading', { name: /^In Progress/ }).locator('..');
-  await expect(inProgressSection.getByRole('heading', { name: 'Offline mode' })).toBeVisible();
-
-  // Confirm tags: "Feature" & "High Priority"
-  // Find the task card containing the heading, then verify tags within it
-  const taskCard = inProgressSection.getByRole('heading', { name: 'Offline mode' }).locator('..');
-  await expect(taskCard.getByText('Feature', { exact: true })).toBeVisible();
-  await expect(taskCard.getByText('High Priority', { exact: true })).toBeVisible();
-});
-
-test('Test Case 6: Verify task in Mobile Application project', async ({ page }) => {
-  // Navigate to "Mobile Application"
-  await page.getByRole('button', { name: /^Mobile Application/ }).click();
-  await expect(page.getByRole('banner').getByRole('heading', { name: 'Mobile Application' })).toBeVisible();
-
-  // Verify "App icon design" is in the "Done" column
-  const doneSection = page.getByRole('heading', { name: /^Done/ }).locator('..');
-  await expect(doneSection.getByRole('heading', { name: 'App icon design' })).toBeVisible();
-
-  // Confirm tag: "Design"
-  // Find the task card containing the heading, then verify tag within it
-  const taskCard = doneSection.getByRole('heading', { name: 'App icon design' }).locator('..');
-  await expect(taskCard.getByText('Design', { exact: true })).toBeVisible();
-});
+    // Verify tags
+    await verifyTaskTags(taskCard, testCase.tags);
+  });
+}
