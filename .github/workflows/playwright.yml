@@ -5,9 +5,10 @@ on:
   pull_request:
     branches: [ main, master ]
 jobs:
-  test:
+  e2e:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    name: e2e - ${{ matrix.browser }} - ${{ matrix.shardIndex }}
     strategy:
       fail-fast: false
       matrix:
@@ -32,7 +33,7 @@ jobs:
         path: blob-report/
         retention-days: 30
   merge-reports:
-    needs: test
+    needs: e2e
     if: always()
     runs-on: ubuntu-latest
     steps:
