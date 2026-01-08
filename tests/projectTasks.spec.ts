@@ -1,28 +1,5 @@
 import { test, expect } from './fixtures';
-import type { Page, Locator } from '@playwright/test';
-
-// Helper function to navigate to a project
-async function navigateToProject(page: Page, projectName: string) {
-  await page.getByRole('button', { name: new RegExp(`^${projectName}`) }).click();
-  await expect(page.getByRole('banner').getByRole('heading', { name: projectName })).toBeVisible();
-}
-
-// Helper function to get a column section
-function getColumnSection(page: Page, columnName: string): Locator {
-  return page.getByRole('heading', { name: new RegExp(`^${columnName}`) }).locator('..');
-}
-
-// Helper function to verify task exists in column and get its card
-function getTaskCard(section: Locator, taskName: string): Locator {
-  return section.getByRole('heading', { name: taskName }).locator('..');
-}
-
-// Helper function to verify task tags
-async function verifyTaskTags(taskCard: Locator, tags: readonly string[]) {
-  for (const tag of tags) {
-    await expect(taskCard.getByText(tag, { exact: true })).toBeVisible();
-  }
-}
+import { navigateToProject, getColumnSection, getTaskCard, verifyTaskTags } from './utils/helpers';
 
 // Test data: all test cases
 const testCases = [

@@ -1,0 +1,327 @@
+# Cursor Rules for Playwright E2E Test Generation
+
+## Architecture Overview
+
+This project uses a **fixture-based auto-login pattern** combined with **data-driven testing** for Playwright e2e tests. All tests automatically authenticate before execution, and test cases are defined as data structures rather than individual test functions.
+
+## Core Principles
+
+### 1. Fixture-Based Auto-Login
+- **ALWAYS** import `test` and `expect` from `./fixtures`, NOT from `@playwright/test`
+- The custom fixture automatically handles authentication before each test
+- Tests receive an authenticated `page` automatically - never call `login()` manually in tests
+- Exception: Only use base `test` from `@playwright/test` when testing the login flow itself
+
+```typescript
+// ✅ CORRECT
+import { test, expect } from './fixtures';
+
+test('my test', async ({ page }) => {
+  // page is already authenticated
+});
+
+// ❌ WRONG
+import { test, expect } from '@playwright/test';
+await login(page); // Don't do this - fixture handles it
+```
+
+### 2. Data-Driven Testing Pattern
+- **ALWAYS** use data-driven approach when multiple test cases follow the same pattern
+- Define test cases as an array of objects with test data
+- Use a loop to generate tests dynamically
+- Separate test data from test logic
+
+```typescript
+// ✅ CORRECT - Data-driven
+const testCases = [
+  { project: 'Web Application', taskName: 'Task 1', column: 'To Do', tags: ['Feature'] },
+  { project: 'Web Application', taskName: 'Task 2', column: 'In Progress', tags: ['Bug'] },
+];
+
+for (const testCase of testCases) {
+  test(`Verify ${testCase.taskName}...`, async ({ page }) => {
+    // Test logic using testCase data
+  });
+}
+
+// ❌ WRONG - Repetitive individual tests
+test('test 1', async ({ page }) => { /* ... */ });
+test('test 2', async ({ page }) => { /* ... */ });
+```
+
+### 3. Helper Functions
+- **ALWAYS** extract reusable operations into helper functions
+- Place helper functions at the top of the test file (before test data)
+- Use semantic selectors in helpers (getByRole, getByLabel, getByText)
+- Keep helpers pure and focused on single responsibilities
+
+```typescript
+// ✅ CORRECT
+async function navigateToProject(page: Page, projectName: string) {
+  await page.getByRole('button', { name: new RegExp(`^${projectName}`) }).click();
+  await expect(page.getByRole('banner').getByRole('heading', { name: projectName })).toBeVisible();
+}
+
+// Use in tests
+await navigateToProject(page, testCase.project);
+```
+
+### 4. Semantic Selectors
+- **ALWAYS** use semantic selectors: `getByRole`, `getByLabel`, `getByText`, `getByPlaceholder`
+- **NEVER** use CSS selectors like `.class-name` or `#id` unless absolutely necessary
+- Prefer `getByRole` for interactive elements
+- Use `getByLabel` for form fields
+- Use `getByText` for text content
+
+```typescript
+// ✅ CORRECT
+await page.getByRole('button', { name: 'Sign in' }).click();
+await page.getByLabel('Username').fill('admin');
+await expect(page.getByText('Success', { exact: true })).toBeVisible();
+
+// ❌ WRONG
+await page.locator('.btn-primary').click();
+await page.locator('#username').fill('admin');
+```
+
+### 5. Test Isolation
+- Each test is completely isolated - no shared state between tests
+- Each test gets a fresh authenticated page from the fixture
+- Tests can run in parallel safely
+- Use `test.describe.configure({ mode: 'parallel' })` if needed for parallel execution within a file
+
+### 6. Type Safety
+- **ALWAYS** use TypeScript types for test data
+- Use `as const` for test data arrays to ensure type safety
+- Import types from `@playwright/test`: `Page`, `Locator`, `Expect`
+
+```typescript
+// ✅ CORRECT
+import type { Page, Locator } from '@playwright/test';
+
+const testCases = [
+  { project: 'Web Application', taskName: 'Task', column: 'To Do', tags: ['Feature'] },
+] as const;
+
+async function helper(page: Page, name: string): Promise<Locator> {
+  // ...
+}
+```
+
+## File Structure
+
+```
+tests/
+├── fixtures.ts          # Custom fixtures with auto-login - DO NOT MODIFY
+├── utils/
+│   └── auth.ts          # Login helper - DO NOT MODIFY
+└── *.spec.ts            # Test files - ADD NEW TESTS HERE
+```
+
+## Creating New Test Files
+
+### Step 1: Import from fixtures
+```typescript
+import { test, expect } from './fixtures';
+import type { Page, Locator } from '@playwright/test';
+```
+
+### Step 2: Define helper functions (if needed)
+```typescript
+async function myHelper(page: Page, param: string) {
+  // Implementation using semantic selectors
+}
+```
+
+### Step 3: Define test data (if data-driven)
+```typescript
+const testCases = [
+  { field1: 'value1', field2: 'value2' },
+  { field1: 'value3', field2: 'value4' },
+] as const;
+```
+
+### Step 4: Write tests
+```typescript
+// For data-driven tests
+for (const testCase of testCases) {
+  test(`Test: ${testCase.field1}`, async ({ page }) => {
+    // Test logic
+  });
+}
+
+// For one-off tests
+test('unique test scenario', async ({ page }) => {
+  // Test logic
+});
+```
+
+## Test Data Structure Guidelines
+
+When creating test data arrays:
+- Use descriptive field names that match what they represent
+- Keep data flat and simple - avoid nested objects unless necessary
+- Use arrays for multiple values (e.g., tags: ['Feature', 'High Priority'])
+- Add `as const` for type safety
+- Group related test cases together
+
+```typescript
+// ✅ GOOD structure
+const testCases = [
+  {
+    project: 'Web Application',
+    taskName: 'Implement feature',
+    column: 'To Do',
+    tags: ['Feature', 'High Priority'],
+  },
+] as const;
+```
+
+## Helper Function Guidelines
+
+When creating helper functions:
+- Name functions descriptively: `navigateToProject`, `verifyTaskExists`, `getColumnSection`
+- Use async/await for all Playwright operations
+- Return Locators when appropriate for chaining
+- Keep functions focused - one responsibility per function
+- Use semantic selectors inside helpers
+- Add type annotations for parameters and return types
+
+```typescript
+// ✅ GOOD helper
+async function navigateToProject(page: Page, projectName: string): Promise<void> {
+  await page.getByRole('button', { name: new RegExp(`^${projectName}`) }).click();
+  await expect(page.getByRole('banner').getByRole('heading', { name: projectName })).toBeVisible();
+}
+
+// ✅ GOOD helper returning Locator
+function getColumnSection(page: Page, columnName: string): Locator {
+  return page.getByRole('heading', { name: new RegExp(`^${columnName}`) }).locator('..');
+}
+```
+
+## Assertions
+
+- **ALWAYS** use `expect` from fixtures (not base expect)
+- Use appropriate matchers: `toBeVisible()`, `toHaveText()`, `toContainText()`, etc.
+- Use `exact: true` when matching text exactly
+- Use soft assertions (`expect.soft()`) when you want to check multiple things without stopping on first failure
+
+```typescript
+// ✅ CORRECT
+await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
+await expect(element.getByText('Feature', { exact: true })).toBeVisible();
+
+// Soft assertions for multiple checks
+await expect.soft(page.getByTestId('status')).toHaveText('Success');
+await expect.soft(page.getByTestId('count')).toHaveText('5');
+```
+
+## Test Organization
+
+- Group related tests in the same file
+- Use descriptive test names that explain what is being tested
+- Include context in test names: project, feature, expected behavior
+- Keep tests focused - one scenario per test
+
+```typescript
+// ✅ GOOD test names
+test('Verify task exists in Web Application project', async ({ page }) => { });
+test('Verify task tags are displayed correctly', async ({ page }) => { });
+
+// ❌ BAD test names
+test('test 1', async ({ page }) => { });
+test('check stuff', async ({ page }) => { });
+```
+
+## Avoiding Common Mistakes
+
+### ❌ DON'T:
+- Import `test` from `@playwright/test` (use `./fixtures`)
+- Call `login()` manually in tests
+- Use CSS selectors (`.class`, `#id`)
+- Create repetitive individual test functions when data-driven would work
+- Share state between tests
+- Use `test.step()` in fixtures (not supported)
+- Hardcode credentials in tests (they're in `utils/auth.ts`)
+
+### ✅ DO:
+- Import `test` from `./fixtures`
+- Let fixtures handle authentication
+- Use semantic selectors
+- Use data-driven approach for similar test cases
+- Keep tests isolated
+- Extract reusable logic to helpers
+- Use TypeScript types
+
+## When to Use Data-Driven vs Individual Tests
+
+**Use data-driven when:**
+- Multiple tests follow the same pattern
+- Only test data changes between tests
+- Testing same functionality with different inputs
+- You have 3+ similar test cases
+
+**Use individual tests when:**
+- Test has completely different flow
+- One-off test scenario
+- Test requires custom setup/teardown
+- Test logic varies significantly
+
+## Example: Complete Test File Template
+
+```typescript
+import { test, expect } from './fixtures';
+import type { Page, Locator } from '@playwright/test';
+
+// Helper functions
+async function navigateToProject(page: Page, projectName: string) {
+  await page.getByRole('button', { name: new RegExp(`^${projectName}`) }).click();
+  await expect(page.getByRole('banner').getByRole('heading', { name: projectName })).toBeVisible();
+}
+
+function getColumnSection(page: Page, columnName: string): Locator {
+  return page.getByRole('heading', { name: new RegExp(`^${columnName}`) }).locator('..');
+}
+
+// Test data
+const testCases = [
+  {
+    project: 'Web Application',
+    taskName: 'Task Name',
+    column: 'To Do',
+    tags: ['Feature'],
+  },
+] as const;
+
+// Tests
+for (const testCase of testCases) {
+  test(`Verify ${testCase.taskName} in ${testCase.project}`, async ({ page }) => {
+    await navigateToProject(page, testCase.project);
+    const columnSection = getColumnSection(page, testCase.column);
+    await expect(columnSection.getByRole('heading', { name: testCase.taskName })).toBeVisible();
+  });
+}
+```
+
+## CI/CD Considerations
+
+- Tests run with 2 shards per browser (configured in `.github/workflows/playwright.yml`)
+- Blob reports are automatically merged
+- Traces are included in blob reports (no separate upload needed)
+- Tests run in parallel by default
+- Each test is isolated and can run independently
+
+## Debugging
+
+- Use `trace: 'retain-on-failure'` (already configured)
+- View traces: `npx playwright show-trace <trace-file>`
+- View HTML report: `npx playwright show-report`
+- All traces are included in merged blob reports
+
+## References
+
+- Architecture docs: `ARCHITECTURE.md` (v1) and `ARCHITECTURE_v2.md` (data-driven)
+- Fixtures: `tests/fixtures.ts`
+- Auth helper: `tests/utils/auth.ts`
+- Playwright best practices: https://playwright.dev/docs/best-practices
