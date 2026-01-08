@@ -2,7 +2,7 @@
 
 ## Architecture Overview
 
-This project uses a **fixture-based auto-login pattern** combined with **data-driven testing** for Playwright e2e tests. All tests automatically authenticate before execution, and test cases are defined as data structures rather than individual test functions.
+This project uses a **fixture-based auto-login pattern** combined with **data-driven testing** for Playwright e2e tests. All tests automatically authenticate before execution, and test cases are defined as data structures. Tests follow the **ARRANGE-ACT-ASSERT** pattern with inline locator definitions.
 
 ## Core Principles
 
@@ -30,17 +30,18 @@ await login(page); // Don't do this - fixture handles it
 - Define test cases as an array of objects with test data
 - Use a loop to generate tests dynamically
 - Separate test data from test logic
+- Keep test logic inline - no separate helper functions
 
 ```typescript
-// ✅ CORRECT - Data-driven
+// ✅ CORRECT - Data-driven with inline logic
 const testCases = [
   { project: 'Web Application', taskName: 'Task 1', column: 'To Do', tags: ['Feature'] },
   { project: 'Web Application', taskName: 'Task 2', column: 'In Progress', tags: ['Bug'] },
-];
+] as const;
 
 for (const testCase of testCases) {
   test(`Verify ${testCase.taskName}...`, async ({ page }) => {
-    // Test logic using testCase data
+    // Inline test logic using testCase data
   });
 }
 
@@ -49,33 +50,58 @@ test('test 1', async ({ page }) => { /* ... */ });
 test('test 2', async ({ page }) => { /* ... */ });
 ```
 
-### 3. Helper Functions
-- **ALWAYS** extract reusable operations into helper functions
-- Place helper functions at the top of the test file (before test data)
-- Use semantic selectors in helpers (getByRole, getByLabel, getByText)
-- Keep helpers pure and focused on single responsibilities
+### 3. ARRANGE-ACT-ASSERT Pattern
+- **ALWAYS** structure tests using ARRANGE-ACT-ASSERT pattern
+- **ARRANGE**: Define all locators upfront at the top of the test
+- **ACT**: Perform user actions (clicks, navigation, etc.)
+- **ASSERT**: Verify expected outcomes
+- Use descriptive variable names for locators
 
 ```typescript
-// ✅ CORRECT
-async function navigateToProject(page: Page, projectName: string) {
-  await page.getByRole('button', { name: new RegExp(`^${projectName}`) }).click();
-  await expect(page.getByRole('banner').getByRole('heading', { name: projectName })).toBeVisible();
-}
-
-// Use in tests
-await navigateToProject(page, testCase.project);
+// ✅ CORRECT - ARRANGE-ACT-ASSERT
+test('my test', async ({ page }) => {
+  // ARRANGE - Define locators
+  const button = page.getByRole('button', { name: 'Submit' });
+  const heading = page.getByRole('heading', { name: 'Success' });
+  
+  // ACT - Perform actions
+  await button.click();
+  
+  // ASSERT - Verify outcomes
+  await expect(heading).toBeVisible();
+});
 ```
 
-### 4. Semantic Selectors
+### 4. Inline Locator Definitions
+- **ALWAYS** define locators inline within the test using semantic selectors
+- Define locators in the ARRANGE section at the top of the test
+- Use descriptive variable names that explain what the locator represents
+- Chain locators when navigating the DOM hierarchy (e.g., `parent.locator('..')`)
+
+```typescript
+// ✅ CORRECT - Inline locators with descriptive names
+const projectNameButton = page.getByRole('button', { name: testCase.project, exact: true });
+const projectNameHeading = page.getByRole('banner').getByRole('heading', { name: testCase.project });
+const columnHeading = page.getByRole('heading', { name: testCase.column, exact: true });
+const column = columnHeading.locator('..');
+const taskCardHeading = column.getByRole('heading', { name: testCase.taskName });
+const taskCard = taskCardHeading.locator('..');
+
+// ❌ WRONG - Separate helper functions for simple locators
+function getProjectButton(page: Page, project: string) { /* ... */ }
+```
+
+### 5. Semantic Selectors
 - **ALWAYS** use semantic selectors: `getByRole`, `getByLabel`, `getByText`, `getByPlaceholder`
 - **NEVER** use CSS selectors like `.class-name` or `#id` unless absolutely necessary
 - Prefer `getByRole` for interactive elements
 - Use `getByLabel` for form fields
 - Use `getByText` for text content
+- Use `exact: true` when you need precise text matching
 
 ```typescript
 // ✅ CORRECT
-await page.getByRole('button', { name: 'Sign in' }).click();
+await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 await page.getByLabel('Username').fill('admin');
 await expect(page.getByText('Success', { exact: true })).toBeVisible();
 
@@ -84,28 +110,22 @@ await page.locator('.btn-primary').click();
 await page.locator('#username').fill('admin');
 ```
 
-### 5. Test Isolation
+### 6. Test Isolation
 - Each test is completely isolated - no shared state between tests
 - Each test gets a fresh authenticated page from the fixture
 - Tests can run in parallel safely
-- Use `test.describe.configure({ mode: 'parallel' })` if needed for parallel execution within a file
+- No helper functions shared across tests (keep logic inline)
 
-### 6. Type Safety
+### 7. Type Safety
 - **ALWAYS** use TypeScript types for test data
 - Use `as const` for test data arrays to ensure type safety
-- Import types from `@playwright/test`: `Page`, `Locator`, `Expect`
+- Import types from `@playwright/test` only when needed: `Page`, `Locator`
 
 ```typescript
 // ✅ CORRECT
-import type { Page, Locator } from '@playwright/test';
-
 const testCases = [
   { project: 'Web Application', taskName: 'Task', column: 'To Do', tags: ['Feature'] },
 ] as const;
-
-async function helper(page: Page, name: string): Promise<Locator> {
-  // ...
-}
 ```
 
 ## File Structure
@@ -118,22 +138,16 @@ tests/
 └── *.spec.ts            # Test files - ADD NEW TESTS HERE
 ```
 
+**Note**: Helper functions are NOT used. All test logic is inline within test files.
+
 ## Creating New Test Files
 
 ### Step 1: Import from fixtures
 ```typescript
 import { test, expect } from './fixtures';
-import type { Page, Locator } from '@playwright/test';
 ```
 
-### Step 2: Define helper functions (if needed)
-```typescript
-async function myHelper(page: Page, param: string) {
-  // Implementation using semantic selectors
-}
-```
-
-### Step 3: Define test data (if data-driven)
+### Step 2: Define test data (if data-driven)
 ```typescript
 const testCases = [
   { field1: 'value1', field2: 'value2' },
@@ -141,19 +155,21 @@ const testCases = [
 ] as const;
 ```
 
-### Step 4: Write tests
+### Step 3: Write tests with ARRANGE-ACT-ASSERT
 ```typescript
-// For data-driven tests
 for (const testCase of testCases) {
   test(`Test: ${testCase.field1}`, async ({ page }) => {
-    // Test logic
+    // ARRANGE - Define locators
+    const element1 = page.getByRole('button', { name: testCase.field1 });
+    const element2 = page.getByRole('heading', { name: testCase.field2 });
+    
+    // ACT - Perform actions
+    await element1.click();
+    
+    // ASSERT - Verify outcomes
+    await expect(element2).toBeVisible();
   });
 }
-
-// For one-off tests
-test('unique test scenario', async ({ page }) => {
-  // Test logic
-});
 ```
 
 ## Test Data Structure Guidelines
@@ -177,27 +193,23 @@ const testCases = [
 ] as const;
 ```
 
-## Helper Function Guidelines
+## Locator Definition Guidelines
 
-When creating helper functions:
-- Name functions descriptively: `navigateToProject`, `verifyTaskExists`, `getColumnSection`
-- Use async/await for all Playwright operations
-- Return Locators when appropriate for chaining
-- Keep functions focused - one responsibility per function
-- Use semantic selectors inside helpers
-- Add type annotations for parameters and return types
+When defining locators inline:
+- Define all locators in the ARRANGE section at the top
+- Use descriptive variable names: `projectNameButton`, `taskCardHeading`, `columnSection`
+- Chain locators to navigate DOM: `parent.locator('..')` for parent, `child.locator('.selector')` for children
+- Use `exact: true` when text matching needs to be precise
+- Build locators from general to specific: `page` → `section` → `element`
 
 ```typescript
-// ✅ GOOD helper
-async function navigateToProject(page: Page, projectName: string): Promise<void> {
-  await page.getByRole('button', { name: new RegExp(`^${projectName}`) }).click();
-  await expect(page.getByRole('banner').getByRole('heading', { name: projectName })).toBeVisible();
-}
-
-// ✅ GOOD helper returning Locator
-function getColumnSection(page: Page, columnName: string): Locator {
-  return page.getByRole('heading', { name: new RegExp(`^${columnName}`) }).locator('..');
-}
+// ✅ GOOD locator definitions
+const projectNameButton = page.getByRole('button', { name: testCase.project, exact: true });
+const projectNameHeading = page.getByRole('banner').getByRole('heading', { name: testCase.project });
+const columnHeading = page.getByRole('heading', { name: testCase.column, exact: true });
+const column = columnHeading.locator('..');
+const taskCardHeading = column.getByRole('heading', { name: testCase.taskName });
+const taskCard = taskCardHeading.locator('..');
 ```
 
 ## Assertions
@@ -206,11 +218,18 @@ function getColumnSection(page: Page, columnName: string): Locator {
 - Use appropriate matchers: `toBeVisible()`, `toHaveText()`, `toContainText()`, etc.
 - Use `exact: true` when matching text exactly
 - Use soft assertions (`expect.soft()`) when you want to check multiple things without stopping on first failure
+- Loop through arrays to verify multiple items
 
 ```typescript
 // ✅ CORRECT
 await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
 await expect(element.getByText('Feature', { exact: true })).toBeVisible();
+
+// Loop through tags array
+for (const tagName of testCase.tags) {
+  const tag = taskCard.getByText(tagName, { exact: true });
+  await expect(tag).toBeVisible();
+}
 
 // Soft assertions for multiple checks
 await expect.soft(page.getByTestId('status')).toHaveText('Success');
@@ -223,10 +242,11 @@ await expect.soft(page.getByTestId('count')).toHaveText('5');
 - Use descriptive test names that explain what is being tested
 - Include context in test names: project, feature, expected behavior
 - Keep tests focused - one scenario per test
+- Use dynamic test names from test data: `` `Test Case: Verify ${testCase.taskName}...` ``
 
 ```typescript
 // ✅ GOOD test names
-test('Verify task exists in Web Application project', async ({ page }) => { });
+test(`Test Case: Verify ${testCase.taskName} in ${testCase.project} project`, async ({ page }) => { });
 test('Verify task tags are displayed correctly', async ({ page }) => { });
 
 // ❌ BAD test names
@@ -240,19 +260,22 @@ test('check stuff', async ({ page }) => { });
 - Import `test` from `@playwright/test` (use `./fixtures`)
 - Call `login()` manually in tests
 - Use CSS selectors (`.class`, `#id`)
+- Create separate helper functions for simple locator definitions
 - Create repetitive individual test functions when data-driven would work
 - Share state between tests
 - Use `test.step()` in fixtures (not supported)
 - Hardcode credentials in tests (they're in `utils/auth.ts`)
+- Extract simple operations to helper functions (keep inline)
 
 ### ✅ DO:
 - Import `test` from `./fixtures`
 - Let fixtures handle authentication
 - Use semantic selectors
+- Define locators inline in ARRANGE section
 - Use data-driven approach for similar test cases
 - Keep tests isolated
-- Extract reusable logic to helpers
-- Use TypeScript types
+- Use ARRANGE-ACT-ASSERT pattern
+- Use TypeScript types with `as const`
 
 ## When to Use Data-Driven vs Individual Tests
 
@@ -272,17 +295,6 @@ test('check stuff', async ({ page }) => { });
 
 ```typescript
 import { test, expect } from './fixtures';
-import type { Page, Locator } from '@playwright/test';
-
-// Helper functions
-async function navigateToProject(page: Page, projectName: string) {
-  await page.getByRole('button', { name: new RegExp(`^${projectName}`) }).click();
-  await expect(page.getByRole('banner').getByRole('heading', { name: projectName })).toBeVisible();
-}
-
-function getColumnSection(page: Page, columnName: string): Locator {
-  return page.getByRole('heading', { name: new RegExp(`^${columnName}`) }).locator('..');
-}
 
 // Test data
 const testCases = [
@@ -296,10 +308,26 @@ const testCases = [
 
 // Tests
 for (const testCase of testCases) {
-  test(`Verify ${testCase.taskName} in ${testCase.project}`, async ({ page }) => {
-    await navigateToProject(page, testCase.project);
-    const columnSection = getColumnSection(page, testCase.column);
-    await expect(columnSection.getByRole('heading', { name: testCase.taskName })).toBeVisible();
+  test(`Test Case: Verify ${testCase.taskName} in ${testCase.project} project`, async ({ page }) => {
+    // ARRANGE - Define locators
+    const projectNameButton = page.getByRole('button', { name: testCase.project, exact: true });
+    const projectNameHeading = page.getByRole('banner').getByRole('heading', { name: testCase.project, exact: true });
+    const columnHeading = page.getByRole('heading', { name: testCase.column, exact: true });
+    const column = columnHeading.locator('..');
+    const taskCardHeading = column.getByRole('heading', { name: testCase.taskName });
+    const taskCard = taskCardHeading.locator('..');
+
+    // ACT - Perform actions
+    await projectNameButton.click();
+
+    // ASSERT - Verify outcomes
+    await expect(projectNameHeading).toBeVisible();
+    await expect(taskCardHeading).toBeVisible();
+
+    for (const tagName of testCase.tags) {
+      const tag = taskCard.getByText(tagName, { exact: true });
+      await expect(tag).toBeVisible();
+    }
   });
 }
 ```
@@ -311,6 +339,7 @@ for (const testCase of testCases) {
 - Traces are included in blob reports (no separate upload needed)
 - Tests run in parallel by default
 - Each test is isolated and can run independently
+- Job names display as "e2e - <browser> - <shardIndex>"
 
 ## Debugging
 
@@ -319,9 +348,28 @@ for (const testCase of testCases) {
 - View HTML report: `npx playwright show-report`
 - All traces are included in merged blob reports
 
+## Key Design Decisions
+
+### Why Inline Locators Instead of Helpers?
+- **Simplicity**: Easier to understand test flow without jumping between files
+- **Clarity**: Locators are defined where they're used, making tests self-contained
+- **Flexibility**: Each test can define locators exactly as needed
+- **Maintainability**: Changes to locators are localized to the test file
+
+### Why ARRANGE-ACT-ASSERT?
+- **Readability**: Clear separation of setup, action, and verification
+- **Structure**: Consistent pattern makes tests easier to understand
+- **Debugging**: Easy to identify which phase failed
+
+### Why Data-Driven?
+- **DRY**: No code duplication
+- **Scalability**: Easy to add new test cases
+- **Maintainability**: Update test logic in one place
+
 ## References
 
-- Architecture docs: `ARCHITECTURE.md` (v1) and `ARCHITECTURE_v2.md` (data-driven)
+- Architecture docs: `ARCHITECTURE_v1.md` (fixture pattern) and `ARCHITECTURE_v2.md` (data-driven)
 - Fixtures: `tests/fixtures.ts`
 - Auth helper: `tests/utils/auth.ts`
+- Example test: `tests/projectTasks.spec.ts`
 - Playwright best practices: https://playwright.dev/docs/best-practices

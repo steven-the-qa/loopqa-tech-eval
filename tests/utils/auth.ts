@@ -1,9 +1,13 @@
-import { Page, expect } from '@playwright/test';
+import { Page } from '@playwright/test';
 
 export async function login(page: Page) {
+  const usernameField = page.getByLabel('Username');
+  const passwordField =  page.getByLabel('Password');
+  const signInButton = page.getByRole('button', { name: 'Sign in' });
+
   await page.goto('https://animated-gingersnap-8cf7f2.netlify.app/');
-  await page.getByLabel('Username').fill('admin');
-  await page.getByLabel('Password').fill('password123');
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
+
+  await usernameField.fill('admin');
+  await passwordField.fill('password123');
+  await signInButton.click();
 }

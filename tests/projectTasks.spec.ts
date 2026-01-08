@@ -1,7 +1,5 @@
 import { test, expect } from './fixtures';
-import { navigateToProject, getColumnSection, getTaskCard, verifyTaskTags } from './utils/helpers';
 
-// Test data: all test cases
 const testCases = [
   {
     project: 'Web Application',
@@ -41,22 +39,29 @@ const testCases = [
   },
 ] as const;
 
-// Data-driven test using test.each
 for (const testCase of testCases) {
   test(`Test Case: Verify ${testCase.taskName} in ${testCase.project} project`, async ({ page }) => {
-    // Navigate to project
-    await navigateToProject(page, testCase.project);
+    // ARRANGE - Define locators
+    const loggedInHeading = page.getByRole('heading', { name: 'Projects' });
+    const projectNameButton = page.getByRole('button', { name: testCase.project });
+    const projectNameHeading = page.getByRole('banner').getByRole('heading', { name: testCase.project });
+    const columnHeading = page.getByRole('heading', { name: testCase.column })
+    const column = columnHeading.locator('..');
+    const taskCardHeading = column.getByRole('heading', { name: testCase.taskName });
+    const taskCard = taskCardHeading.locator('..');
 
-    // Get column section
-    const columnSection = getColumnSection(page, testCase.column);
+    // ACT - Verify logged-in state & click into the project
+    await expect(loggedInHeading).toBeVisible();
+    await projectNameButton.click();
 
-    // Verify task exists
-    await expect(columnSection.getByRole('heading', { name: testCase.taskName })).toBeVisible();
+    // ASSERT - Verify project & task information
+    await expect(projectNameHeading).toBeVisible();
+    await expect(taskCardHeading).toBeVisible();
 
-    // Get task card
-    const taskCard = getTaskCard(columnSection, testCase.taskName);
+    for (const tagName of testCase.tags) {
+      const tag = taskCard.getByText(tagName, { exact: true });
 
-    // Verify tags
-    await verifyTaskTags(taskCard, testCase.tags);
+      await expect(tag).toBeVisible();
+    };
   });
 }
